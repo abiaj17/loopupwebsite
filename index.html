@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Loopup — Small games. Solo or with friends.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+  <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent:    #9333ea;
+      --fuchsia:   #d946ef;
+      --pink-500:  #ec4899;
+      --pink-400:  #f472b6;
+      --pink-300:  #f9a8d4;
+      --pink-100:  #fce7f3;
+      --lavender:  #fdf4ff;
+      --lavender2: #fae8ff;
+      --lavender3: #f5d0fe;
+      --black:     #1f1f1f;
+      --black-tint: hsl(0,0%,24%);
+      --white:     #ffffff;
+      --shadow: rgba(147,51,234,0.10);
+      --shadow2: rgba(147,51,234,0.06);
+      --shadow3: rgba(147,51,234,0.04);
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      font-family: 'Pixelify Sans', monospace;
+      background: var(--lavender);
+      color: var(--black);
+      font-weight: 400;
+    }
+
+    #root { width: 100%; height: 100%; }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--lavender); }
+    ::-webkit-scrollbar-thumb { background: var(--lavender3); }
+
+    .wipe-overlay {
+      position: fixed; inset: 0; z-index: 9999;
+      pointer-events: none;
+      display: flex;
+    }
+    .wipe-block {
+      height: 100%;
+      flex: 1;
+      transform: scaleX(0);
+      transform-origin: left center;
+    }
+
+    @keyframes wipe-in {
+      0%   { transform: scaleX(0); }
+      100% { transform: scaleX(1); }
+    }
+    @keyframes wipe-out {
+      0%   { transform: scaleX(1); }
+      100% { transform: scaleX(0); transform-origin: right center; }
+    }
+
+    .wipe-entering .wipe-block { animation: wipe-in 0.3s ease-in forwards; }
+    .wipe-entering .wipe-block:nth-child(1) { animation-delay: 0ms; }
+    .wipe-entering .wipe-block:nth-child(2) { animation-delay: 30ms; }
+    .wipe-entering .wipe-block:nth-child(3) { animation-delay: 60ms; }
+    .wipe-entering .wipe-block:nth-child(4) { animation-delay: 90ms; }
+    .wipe-entering .wipe-block:nth-child(5) { animation-delay: 120ms; }
+    .wipe-entering .wipe-block:nth-child(6) { animation-delay: 150ms; }
+
+    .wipe-leaving .wipe-block { transform: scaleX(1); animation: wipe-out 0.3s ease-out forwards; }
+    .wipe-leaving .wipe-block:nth-child(1) { animation-delay: 150ms; transform-origin: right center; }
+    .wipe-leaving .wipe-block:nth-child(2) { animation-delay: 120ms; transform-origin: right center; }
+    .wipe-leaving .wipe-block:nth-child(3) { animation-delay: 90ms; transform-origin: right center; }
+    .wipe-leaving .wipe-block:nth-child(4) { animation-delay: 60ms; transform-origin: right center; }
+    .wipe-leaving .wipe-block:nth-child(5) { animation-delay: 30ms; transform-origin: right center; }
+    .wipe-leaving .wipe-block:nth-child(6) { animation-delay: 0ms; transform-origin: right center; }
+
+    .fade-up {
+      opacity: 0;
+      transform: translateY(40px);
+      transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+    }
+    .fade-up.visible { opacity: 1; transform: translateY(0); }
+
+    /* ── Retro hero ── */
+    @keyframes retro-scroll {
+      from { background-position: center 0px; }
+      to   { background-position: center 60px; }
+    }
+    @keyframes retro-sun-pulse {
+      0%, 100% { box-shadow: 0 0 40px 8px rgba(217,70,239,0.55), 0 0 90px 20px rgba(147,51,234,0.25); }
+      50%       { box-shadow: 0 0 60px 16px rgba(217,70,239,0.75), 0 0 130px 40px rgba(147,51,234,0.35); }
+    }
+    .retro-hero-bg {
+      position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+      background: linear-gradient(to bottom,
+        #060010 0%, #0d0025 20%, #1a0040 36%, #2a005a 42%, #3a006e 46%,
+        #200050 62%, #0d0030 82%, #fdf4ff 100%
+      );
+    }
+    .retro-sun {
+      position: absolute; left: 50%; transform: translateX(-50%);
+      bottom: 38%; width: 200px; height: 100px;
+      border-radius: 100px 100px 0 0;
+      background: linear-gradient(180deg, #fff5fc 0%, #fce7f3 15%, #f9a8d4 35%, #f472b6 55%, #d946ef 75%, #9333ea 100%);
+      animation: retro-sun-pulse 3s ease-in-out infinite;
+      overflow: hidden;
+    }
+    .retro-sun::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px, transparent 8px,
+        rgba(6,0,16,0.8) 8px, rgba(6,0,16,0.8) 11px
+      );
+    }
+    .retro-horizon-glow {
+      position: absolute; left: -20%; right: -20%;
+      height: 120px; bottom: calc(38% - 2px);
+      background: radial-gradient(ellipse 60% 100% at center bottom,
+        rgba(217,70,239,0.6) 0%, rgba(147,51,234,0.2) 50%, transparent 100%);
+    }
+    .retro-grid-wrap {
+      position: absolute; left: -80%; right: -80%;
+      top: 62%; bottom: -10%;
+      perspective: 280px; perspective-origin: center top;
+    }
+    .retro-grid-plane {
+      position: absolute; inset: 0;
+      transform: rotateX(28deg);
+      transform-origin: top center;
+      background-image:
+        linear-gradient(to bottom, rgba(217,70,239,0.7) 1px, transparent 1px),
+        linear-gradient(to right,  rgba(217,70,239,0.4) 1px, transparent 1px);
+      background-size: 80px 60px;
+      animation: retro-scroll 1.4s linear infinite;
+    }
+    .retro-scanlines {
+      position: absolute; inset: 0; pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px, transparent 2px,
+        rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px
+      );
+    }
+    .retro-fade-bottom {
+      position: absolute; left: 0; right: 0; bottom: 0; height: 20%;
+      background: linear-gradient(to bottom, transparent 0%, #fdf4ff 100%);
+    }
+    /* ── Retro hero end ── */
+
+    /* ── Retro Section 3 ── */
+    @keyframes retro-h-scroll {
+      from { background-position: 0 0; }
+      to   { background-position: 32px 0; }
+    }
+    @keyframes retro-s3-pulse {
+      0%, 100% { opacity: 0.5; }
+      50%       { opacity: 1; }
+    }
+    .retro-s3-bg {
+      position: absolute; inset: 0; pointer-events: none;
+      background-color: #060010;
+      background-image:
+        linear-gradient(rgba(217,70,239,0.18) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(217,70,239,0.10) 1px, transparent 1px);
+      background-size: 32px 32px;
+      animation: retro-h-scroll 2.5s linear infinite;
+    }
+    .retro-s3-glow {
+      position: absolute; inset: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse 55% 35% at 15% 25%, rgba(217,70,239,0.18) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 50% at 85% 65%, rgba(147,51,234,0.15) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 30% at 50% 80%, rgba(249,168,212,0.10) 0%, transparent 70%);
+      animation: retro-s3-pulse 5s ease-in-out infinite;
+    }
+    .retro-s3-scanlines {
+      position: absolute; inset: 0; pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px, transparent 2px,
+        rgba(0,0,0,0.18) 2px, rgba(0,0,0,0.18) 4px
+      );
+    }
+    /* ── Retro Section 3 end ── */
+
+    @keyframes grad-bar-breathe {
+      0%, 100% { flex: 14; }
+      50%       { flex: 18; }
+    }
+    .grad-bar { width: 100%; height: 80px; display: flex; position: relative; z-index: 2; }
+    .grad-bar-block { animation: grad-bar-breathe 8s ease-in-out infinite; }
+    .grad-bar-block:nth-child(1) { background: #f9a8d4; animation-delay: 0s; }
+    .grad-bar-block:nth-child(2) { background: #f472b6; animation-delay: -1.3s; }
+    .grad-bar-block:nth-child(3) { background: #ec4899; animation-delay: -2.6s; }
+    .grad-bar-block:nth-child(4) { background: #d946ef; animation-delay: -3.9s; }
+    .grad-bar-block:nth-child(5) { background: #a855f7; animation-delay: -5.2s; }
+    .grad-bar-block:nth-child(6) { background: #9333ea; animation-delay: -6.5s; }
+
+    @keyframes diamond-drift {
+      from { background-position: 0px 0px, 0px 20px, 20px -20px, -20px 0px, 0px 0px, 0px 0px; }
+      to   { background-position: 40px 40px, 40px 60px, 60px 20px, 20px 40px, 40px 40px, 40px 40px; }
+    }
+    .diamond-grid-bg {
+      position: absolute; inset: 0; pointer-events: none;
+      background-color: var(--lavender);
+      background-image:
+        linear-gradient(45deg, rgba(168,85,247,0.09) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(168,85,247,0.09) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(168,85,247,0.09) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(168,85,247,0.09) 75%),
+        linear-gradient(rgba(217,70,239,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(217,70,239,0.05) 1px, transparent 1px);
+      background-size: 40px 40px, 40px 40px, 40px 40px, 40px 40px, 40px 40px, 40px 40px;
+      animation: diamond-drift 6s linear infinite;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    // ─── Shared utilities ───────────────────────────────────────────────────────
+
+    const PURPLE_SHADOW = `rgba(147,51,234,0.10) -8px 16px 39px, rgba(147,51,234,0.06) -20px 40px 60px, rgba(147,51,234,0.04) -40px 80px 90px`;
+    const PURPLE_SHADOW_HOVER = `rgba(147,51,234,0.18) -8px 16px 39px, rgba(147,51,234,0.10) -20px 40px 60px, rgba(147,51,234,0.06) -40px 80px 90px`;
+    const GRAD = 'linear-gradient(135deg, #f9a8d4, #d946ef, #9333ea)';
+
+    function GradientBar({ style = {} }) {
+      return (
+        <div className="grad-bar" style={style}>
+          {[0,1,2,3,4,5].map(i => <div key={i} className="grad-bar-block" />)}
+        </div>
+      );
+    }
+
+    function WordReveal({ text, size = 82, style = {}, lineStyle = {}, color = 'var(--black)' }) {
+      const [revealed, setRevealed] = React.useState(false);
+      React.useEffect(() => {
+        setRevealed(false);
+        const r1 = requestAnimationFrame(() => {
+          const r2 = requestAnimationFrame(() => setRevealed(true));
+          return () => cancelAnimationFrame(r2);
+        });
+        return () => cancelAnimationFrame(r1);
+      }, [text]);
+
+      const lines = text.split('\n');
+      return (
+        <div style={{ position: 'relative', zIndex: 2, ...style }}>
+          {lines.map((line, li) => {
+            const words = line.split(' ');
+            const globalOffset = lines.slice(0, li).join(' ').split(' ').filter(Boolean).length;
+            return (
+              <div key={li} style={{ display: 'block', lineHeight: 1.0, whiteSpace: 'nowrap', ...lineStyle }}>
+                {words.map((word, wi) => (
+                  <span key={wi} style={{
+                    display: 'inline-block', verticalAlign: 'top',
+                    opacity: revealed ? 1 : 0,
+                    transform: revealed ? 'translateY(0)' : 'translateY(16px)',
+                    transition: `opacity 0.35s ease-out ${(globalOffset + wi) * 60}ms, transform 0.35s ease-out ${(globalOffset + wi) * 60}ms`,
+                    marginRight: wi < words.length - 1 ? '0.22em' : 0,
+                    fontSize: size,
+                    fontFamily: "'Pixelify Sans', monospace",
+                    fontWeight: 400,
+                    letterSpacing: size >= 60 ? '-2.05px' : '-0.5px',
+                    color,
+                  }}>{word}</span>
+                ))}{' '}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    function FadeUp({ children, delay = 0, style = {} }) {
+      const ref = React.useRef();
+      const [visible, setVisible] = React.useState(false);
+      React.useEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        const obs = new IntersectionObserver(([e]) => {
+          if (e.isIntersecting) { setVisible(true); obs.disconnect(); }
+        }, { threshold: 0.15 });
+        obs.observe(el);
+        return () => obs.disconnect();
+      }, []);
+      return (
+        <div ref={ref} style={{
+          opacity: visible ? 1 : 0,
+          transform: visible ? 'translateY(0)' : 'translateY(40px)',
+          transition: `opacity 0.5s ease-out ${delay}ms, transform 0.5s ease-out ${delay}ms`,
+          position: 'relative', zIndex: 2,
+          ...style,
+        }}>
+          {children}
+        </div>
+      );
+    }
+
+    function GradientButton({ children, onClick, padding = '14px 28px', fontSize = 13, letterSpacing = '0.1em', style = {} }) {
+      const [hovered, setHovered] = React.useState(false);
+      return (
+        <button onClick={onClick}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          style={{
+            position: 'relative', overflow: 'hidden',
+            background: 'var(--black)', color: hovered ? '#fff' : '#fff',
+            border: 'none', cursor: 'pointer',
+            padding, borderRadius: 8,
+            fontSize, letterSpacing, textTransform: 'uppercase',
+            fontFamily: "'Pixelify Sans', monospace", fontWeight: 400,
+            transition: 'color 0.4s', zIndex: 0, ...style,
+          }}
+        >
+          <span style={{
+            position: 'absolute', inset: 0, background: GRAD,
+            opacity: hovered ? 1 : 0, transition: 'opacity 0.4s ease', zIndex: -1,
+          }} />
+          {children}
+        </button>
+      );
+    }
+
+    // ─── Section 1 Hero animated mesh-blob background ───────────────────────────
+
+    function HeroBlobBg() {
+      return (
+        <div className="retro-hero-bg">
+          <div className="retro-sun" />
+          <div className="retro-horizon-glow" />
+          <div className="retro-grid-wrap">
+            <div className="retro-grid-plane" />
+          </div>
+          <div className="retro-scanlines" />
+          <div className="retro-fade-bottom" />
+        </div>
+      );
+    }
+
+    // ─── Section 2 background — soft purple diamond grid ───────────────────────
+
+    function DiamondGridBg() {
+      return <div className="diamond-grid-bg" />;
+    }
+
+    // ─── Section 3 background — animated diagonal gradient sweep ───────────────
+
+    function DiagonalSweepBg() {
+      return (
+        <>
+          <div className="retro-s3-bg" />
+          <div className="retro-s3-glow" />
+          <div className="retro-s3-scanlines" />
+        </>
+      );
+    }
+
+    // ─── Section 4 background — deep purple with SVG noise grain ───────────────
+
+    function NoisePurpleBg() {
+      return (
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          {/* Deep purple gradient base */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'linear-gradient(145deg, #1e0a2e 0%, #2d0a4f 35%, #0f0520 70%, #1a0535 100%)',
+          }} />
+          {/* Soft glow orbs */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: `
+              radial-gradient(ellipse 60% 50% at 20% 30%, rgba(217,70,239,0.18) 0%, transparent 60%),
+              radial-gradient(ellipse 40% 60% at 80% 70%, rgba(168,85,247,0.15) 0%, transparent 55%),
+              radial-gradient(ellipse 50% 40% at 55% 15%, rgba(249,168,212,0.10) 0%, transparent 50%)
+            `,
+          }} />
+          {/* SVG noise grain */}
+          <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.20 }} xmlns="http://www.w3.org/2000/svg">
+            <filter id="grain">
+              <feTurbulence type="fractalNoise" baseFrequency="0.72" numOctaves="4" stitchTiles="stitch" />
+              <feColorMatrix type="saturate" values="0" />
+              <feBlend in="SourceGraphic" mode="multiply" />
+            </filter>
+            <rect width="100%" height="100%" filter="url(#grain)" />
+          </svg>
+        </div>
+      );
+    }
+
+    // ─── Nav ────────────────────────────────────────────────────────────────────
+
+    const NAV_SECTIONS = ['Overview', 'Mini Games', 'How It Works', 'Download'];
+
+    function NavCTAButton({ onClick }) {
+      const [hovered, setHovered] = React.useState(false);
+      return (
+        <button onClick={onClick}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          style={{
+            position: 'relative', overflow: 'hidden',
+            background: 'var(--black)', color: '#fff',
+            border: 'none', cursor: 'pointer',
+            padding: '12px 20px', borderRadius: 8,
+            fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase',
+            fontFamily: "'Pixelify Sans', monospace", fontWeight: 400,
+            flex: '0 0 auto', transition: 'color 0.4s', zIndex: 0,
+          }}
+        >
+          <span style={{
+            position: 'absolute', inset: 0, background: GRAD,
+            opacity: hovered ? 1 : 0, transition: 'opacity 0.4s ease', zIndex: -1,
+          }} />
+          Get Loopup
+        </button>
+      );
+    }
+
+    function Nav({ active, onNav }) {
+      const dark = active === 'Download' || active === 'Overview' || active === 'How It Works';
+      const textColor = dark ? 'rgba(255,255,255,0.9)' : 'var(--black)';
+      const mutedColor = dark ? 'rgba(255,255,255,0.5)' : 'var(--black-tint)';
+      return (
+        <nav style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000,
+          height: 64,
+          display: 'flex', alignItems: 'center',
+          padding: '0 48px',
+          background: dark ? 'rgba(10,2,20,0.2)' : 'rgba(253,244,255,0.08)',
+          backdropFilter: 'blur(8px)',
+          borderBottom: dark ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(147,51,234,0.06)',
+          transition: 'background 0.3s, border-color 0.3s',
+        }}>
+          <div style={{
+            fontSize: 22, fontWeight: 400, letterSpacing: '-0.04em',
+            color: textColor, whiteSpace: 'nowrap',
+            display: 'flex', alignItems: 'center', gap: 8, flex: '0 0 auto',
+            transition: 'color 0.3s',
+          }}>
+            <span style={{ display: 'inline-flex', gap: 2 }}>
+              {['#f9a8d4','#f472b6','#d946ef','#9333ea'].map((c,i) => (
+                <span key={i} style={{ display: 'inline-block', width: 7, height: 18, background: c }} />
+              ))}
+            </span>
+            <span style={{ fontFamily: "'Pixelify Sans', monospace", letterSpacing: '-0.05em' }}>Loopup</span>
+          </div>
+
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: 40 }}>
+            {NAV_SECTIONS.map(s => (
+              <button key={s} onClick={() => onNav(s)} style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase',
+                color: active === s ? textColor : mutedColor,
+                padding: '4px 0 8px', position: 'relative',
+                fontFamily: "'Pixelify Sans', monospace", fontWeight: 500,
+                transition: 'color 0.2s',
+              }}>
+                {s}
+                {active === s && (
+                  <span style={{
+                    position: 'absolute', bottom: 0, left: 0, right: 0,
+                    height: 3, background: GRAD,
+                  }} />
+                )}
+              </button>
+            ))}
+          </div>
+
+          <NavCTAButton onClick={() => onNav('Download')} />
+        </nav>
+      );
+    }
+
+    // ─── Section 1 — Overview ───────────────────────────────────────────────────
+
+    function Section1({ onNav }) {
+      return (
+        <div style={{ background: 'var(--lavender)', minHeight: '100%', paddingTop: 64, position: 'relative' }}>
+          {/* Blob hero background (only behind hero viewport) */}
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 'calc(100vh - 64px)', overflow: 'hidden' }}>
+            <HeroBlobBg />
+          </div>
+
+          {/* Hero */}
+          <div style={{
+            maxWidth: 1280, margin: '0 auto',
+            padding: '100px 48px 80px',
+            minHeight: 'calc(100vh - 64px)',
+            display: 'flex', flexDirection: 'column', justifyContent: 'center',
+            position: 'relative', zIndex: 2,
+          }}>
+            <WordReveal
+              text={"Small games.\nSolo or with friends.\nThe app builds more\nthe longer you play."}
+              size={82}
+              color="#ffffff"
+            />
+            <FadeUp delay={600}>
+              <p style={{
+                marginTop: 40, fontSize: 20, lineHeight: 1.55,
+                color: 'rgba(255,255,255,0.72)', maxWidth: 520,
+              }}>
+                Loopup is a pile of tiny games on your phone. Play them by yourself, play them against people in your contacts, and let the app cook up new ones based on what you actually like.
+              </p>
+            </FadeUp>
+            <FadeUp delay={750}>
+              <div style={{ display: 'flex', gap: 24, alignItems: 'center', marginTop: 44 }}>
+                <GradientButton onClick={() => onNav('Download')} padding="14px 28px">
+                  Get Loopup
+                </GradientButton>
+                <button
+                  onClick={() => onNav('How It Works')}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 16, color: 'rgba(255,255,255,0.8)',
+                    fontFamily: "'Pixelify Sans', monospace", fontWeight: 400,
+                    paddingTop: 8, borderBottom: '1px solid rgba(255,255,255,0.4)',
+                    letterSpacing: '0', transition: 'color 0.2s, border-color 0.2s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.color = '#f9a8d4'; e.currentTarget.style.borderBottomColor = '#f9a8d4'; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.8)'; e.currentTarget.style.borderBottomColor = 'rgba(255,255,255,0.4)'; }}
+                >
+                  How it works
+                </button>
+              </div>
+            </FadeUp>
+          </div>
+
+          <GradientBar />
+
+          {/* Manifesto */}
+          <div style={{ maxWidth: 1280, margin: '0 auto', padding: '120px 48px', position: 'relative', zIndex: 2 }}>
+            <FadeUp>
+              <div style={{ fontSize: 32, lineHeight: 1.15, letterSpacing: '-0.5px', color: 'var(--black)' }}>
+                <div>No level packs.</div>
+                <div>No daily login streaks.</div>
+                <div>No ten-minute tutorial before you play.</div>
+              </div>
+            </FadeUp>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, marginTop: 80 }}>
+              <FadeUp delay={0}>
+                <div style={{ background: 'var(--lavender2)', padding: 40, borderRadius: 12, boxShadow: PURPLE_SHADOW }}>
+                  <div style={{ fontSize: 24, fontWeight: 400, letterSpacing: '-0.5px', marginBottom: 20, color: 'var(--black)' }}>Alone.</div>
+                  <p style={{ fontSize: 16, lineHeight: 1.6, color: 'var(--black-tint)' }}>
+                    Most games are five-minute things. Open the app at a bus stop, close it when the bus comes.
+                  </p>
+                </div>
+              </FadeUp>
+              <FadeUp delay={100}>
+                <div style={{ background: 'var(--lavender2)', padding: 40, borderRadius: 12, boxShadow: PURPLE_SHADOW }}>
+                  <div style={{ fontSize: 24, fontWeight: 400, letterSpacing: '-0.5px', marginBottom: 20, color: 'var(--black)' }}>Or together.</div>
+                  <p style={{ fontSize: 16, lineHeight: 1.6, color: 'var(--black-tint)' }}>
+                    Tap a friend's name, pick a game, both phones unlock the same match. The AI watches both of you and starts making games designed for that specific pairing.
+                  </p>
+                </div>
+              </FadeUp>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Section 2 — Mini Games ─────────────────────────────────────────────────
+
+    function Die3D() {
+      const mountRef = React.useRef();
+      React.useEffect(() => {
+        const el = mountRef.current;
+        if (!el || !window.THREE) return;
+        const THREE = window.THREE;
+        const W = el.clientWidth || 400, H = el.clientHeight || 400;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(W, H);
+        el.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(38, W / H, 0.1, 100);
+        camera.position.set(0, 0, 6);
+
+        scene.add(new THREE.AmbientLight(0xf9a8d4, 0.6));
+        const dir = new THREE.DirectionalLight(0xd946ef, 1.2);
+        dir.position.set(4, 5, 4); scene.add(dir);
+        const fill = new THREE.DirectionalLight(0x9333ea, 0.5);
+        fill.position.set(-3, -1, 2); scene.add(fill);
+
+        function buildRoundedCube(size, r, N) {
+          const s = size / 2 - r;
+          const positions = [], normals = [], indices = [];
+          for (let lat = 0; lat <= N; lat++) {
+            const theta = (lat / N) * Math.PI;
+            const sinT = Math.sin(theta), cosT = Math.cos(theta);
+            for (let lon = 0; lon <= N * 2; lon++) {
+              const phi = (lon / (N * 2)) * Math.PI * 2;
+              const dx = sinT * Math.cos(phi), dy = cosT, dz = sinT * Math.sin(phi);
+              const cx = Math.max(-s, Math.min(s, dx * 1000));
+              const cy = Math.max(-s, Math.min(s, dy * 1000));
+              const cz = Math.max(-s, Math.min(s, dz * 1000));
+              const ex = dx - cx/1000, ey = dy - cy/1000, ez = dz - cz/1000;
+              const el2 = Math.sqrt(ex*ex + ey*ey + ez*ez) || 1;
+              const nx = ex/el2, ny = ey/el2, nz = ez/el2;
+              positions.push(cx + nx*r, cy + ny*r, cz + nz*r);
+              normals.push(nx, ny, nz);
+            }
+          }
+          const cols = N * 2 + 1;
+          for (let lat = 0; lat < N; lat++)
+            for (let lon = 0; lon < N * 2; lon++) {
+              const a = lat*cols+lon, b = lat*cols+lon+1;
+              const c = (lat+1)*cols+lon, d = (lat+1)*cols+lon+1;
+              indices.push(a, c, b, b, c, d);
+            }
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+          geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+          geo.setIndex(indices);
+          geo.computeVertexNormals();
+          return geo;
+        }
+
+        const die = new THREE.Mesh(
+          buildRoundedCube(2.2, 0.22, 32),
+          new THREE.MeshStandardMaterial({ color: 0xd946ef, metalness: 0.15, roughness: 0.40 })
+        );
+        scene.add(die);
+
+        const pipGroup = new THREE.Group();
+        die.add(pipGroup);
+        const pipMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.1, roughness: 0.6 });
+        const pipGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.08, 12);
+        const S = 0.48;
+        const layouts = [
+          [[0,0]],
+          [[-S,-S],[S,S]],
+          [[-S,-S],[0,0],[S,S]],
+          [[-S,-S],[S,-S],[-S,S],[S,S]],
+          [[-S,-S],[S,-S],[0,0],[-S,S],[S,S]],
+          [[-S,-S],[S,-S],[-S,0],[S,0],[-S,S],[S,S]],
+        ];
+        const H2 = 1.13;
+        [
+          { pos:[H2,0,0],  rot:[0,0,-Math.PI/2] },
+          { pos:[-H2,0,0], rot:[0,0,Math.PI/2] },
+          { pos:[0,H2,0],  rot:[0,0,0] },
+          { pos:[0,-H2,0], rot:[Math.PI,0,0] },
+          { pos:[0,0,H2],  rot:[Math.PI/2,0,0] },
+          { pos:[0,0,-H2], rot:[-Math.PI/2,0,0] },
+        ].forEach((face, fi) => {
+          const fg = new THREE.Group();
+          fg.position.set(...face.pos); fg.rotation.set(...face.rot);
+          pipGroup.add(fg);
+          layouts[fi].forEach(([u, v]) => {
+            const pip = new THREE.Mesh(pipGeo, pipMat);
+            pip.position.set(u, 0.02, v);
+            fg.add(pip);
+          });
+        });
+
+        const orientations = [
+          new THREE.Euler(0,0,0), new THREE.Euler(Math.PI/2,0,0),
+          new THREE.Euler(0,Math.PI/2,0), new THREE.Euler(-Math.PI/2,0,0),
+          new THREE.Euler(0,-Math.PI/2,0), new THREE.Euler(Math.PI,0,0),
+        ];
+        let currentOri = 0, phase = 'pause', phaseTimer = 0;
+        const pauseDuration = 2.5, tumbleDuration = 2.0;
+        let targetQuat = new THREE.Quaternion().setFromEuler(orientations[0]);
+        let fromQuat = new THREE.Quaternion();
+        let tumbleT = 0;
+        const clock = new THREE.Clock();
+        let animId;
+
+        const animate = () => {
+          animId = requestAnimationFrame(animate);
+          const dt = clock.getDelta();
+          if (phase === 'pause') {
+            phaseTimer += dt;
+            die.position.y = Math.sin(phaseTimer * 1.2) * 0.06;
+            if (phaseTimer > pauseDuration) {
+              phase = 'tumble'; phaseTimer = 0; tumbleT = 0;
+              currentOri = (currentOri + 1) % orientations.length;
+              fromQuat.copy(die.quaternion);
+              targetQuat.setFromEuler(orientations[currentOri]);
+            }
+          } else {
+            tumbleT = Math.min(1, tumbleT + dt / tumbleDuration);
+            die.quaternion.slerpQuaternions(fromQuat, targetQuat, tumbleT * tumbleT * (3 - 2 * tumbleT));
+            die.position.y = 0;
+            if (tumbleT >= 1) { phase = 'pause'; phaseTimer = 0; die.quaternion.copy(targetQuat); }
+          }
+          renderer.render(scene, camera);
+        };
+        animate();
+
+        const onResize = () => {
+          const nW = el.clientWidth, nH = el.clientHeight;
+          camera.aspect = nW / nH; camera.updateProjectionMatrix();
+          renderer.setSize(nW, nH);
+        };
+        window.addEventListener('resize', onResize);
+        return () => {
+          cancelAnimationFrame(animId); window.removeEventListener('resize', onResize);
+          renderer.dispose();
+          if (el.contains(renderer.domElement)) el.removeChild(renderer.domElement);
+        };
+      }, []);
+      return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />;
+    }
+
+    const GAME_COLORS = ['#f9a8d4','#f472b6','#ec4899','#d946ef','#a855f7','#9333ea','#f9a8d4','#f472b6','#d946ef'];
+    const GAMES = [
+      { name: 'Tilework',    mode: 'SOLO',     desc: "Slide tiles to make a path. The path remembers where you've been." },
+      { name: 'Foxhole',     mode: 'VS',       desc: 'A word game where every word either of you uses gets locked for the rest of the match.' },
+      { name: 'Drift',       mode: 'SOLO + VS',desc: "Steer a slow shape through a slower one. Sounds boring. Isn't." },
+      { name: 'Ladders',     mode: 'SOLO',     desc: "Climb. Don't look down. There is no down." },
+      { name: 'Sap',         mode: 'VS',       desc: 'Match colors faster than your opponent or the tree starts dropping branches on you.' },
+      { name: 'Pocket Chess',mode: 'VS',       desc: 'Chess but the board is four squares wide and a game lasts ninety seconds.' },
+      { name: 'Hum',         mode: 'SOLO',     desc: 'Tap the rhythm. The rhythm is lying to you.' },
+      { name: 'Glasshouse',  mode: 'SOLO + VS',desc: "Build a tower out of pieces that aren't there yet. In versus mode, you build on each other's towers." },
+      { name: 'Carry',       mode: 'VS',       desc: 'Move things from one side to the other. Your friend is trying to move them back.' },
+    ];
+
+    function GameCard({ game, color, delay }) {
+      const [hovered, setHovered] = React.useState(false);
+      return (
+        <FadeUp delay={delay} style={{ height: '100%' }}>
+          <div
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            style={{
+              background: 'rgba(253,244,255,0.85)', backdropFilter: 'blur(4px)',
+              padding: 28, borderRadius: 12,
+              boxShadow: hovered ? PURPLE_SHADOW_HOVER : PURPLE_SHADOW,
+              transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
+              transition: 'all 0.2s ease',
+              position: 'relative', overflow: 'hidden', minHeight: 160, height: '100%',
+            }}
+          >
+            <div style={{
+              position: 'absolute', top: 0, left: 0, height: 4, width: '100%',
+              background: color,
+              transform: hovered ? 'scaleX(1)' : 'scaleX(0.07)',
+              transformOrigin: 'left center',
+              transition: 'transform 0.2s ease',
+            }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+              <div style={{ fontSize: 24, fontWeight: 600, letterSpacing: '-0.5px', color: 'var(--black)' }}>{game.name}</div>
+              <span style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--accent)', fontFamily: "'Pixelify Sans', monospace", marginTop: 4 }}>{game.mode}</span>
+            </div>
+            <p style={{ fontSize: 14, lineHeight: 1.5, color: 'var(--black-tint)' }}>{game.desc}</p>
+          </div>
+        </FadeUp>
+      );
+    }
+
+    function Section2() {
+      return (
+        <div style={{ background: 'var(--lavender)', minHeight: '100%', paddingTop: 64, position: 'relative', overflow: 'hidden' }}>
+          <DiamondGridBg />
+
+          <div style={{
+            maxWidth: 1280, margin: '0 auto',
+            padding: '80px 48px 60px',
+            display: 'flex', alignItems: 'center', gap: 60,
+            position: 'relative', zIndex: 2,
+          }}>
+            <div style={{ flex: '0 0 50%' }}>
+              <WordReveal text={"The starting library.\nThen it gets weird."} size={56} />
+              <FadeUp delay={400}>
+                <p style={{ marginTop: 28, fontSize: 18, lineHeight: 1.6, color: 'var(--black-tint)', maxWidth: 480 }}>
+                  Every account opens with the same set of small games — some you play alone, some you play against people. After about a week, yours stops looking like anyone else's.
+                </p>
+              </FadeUp>
+            </div>
+            <div style={{ flex: '0 0 380px', height: 380 }}>
+              <Die3D />
+            </div>
+          </div>
+
+          <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 48px 80px', position: 'relative', zIndex: 2 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, alignItems: 'stretch' }}>
+              {GAMES.map((g, i) => (
+                <GameCard key={g.name} game={g} color={GAME_COLORS[i]} delay={i * 60} />
+              ))}
+            </div>
+          </div>
+
+          <GradientBar />
+
+          <FadeUp>
+            <div style={{ maxWidth: 1280, margin: '0 auto', padding: '28px 48px', fontSize: 14, color: 'var(--black-tint)' }}>
+              These nine ship with the app. The other 391 are unlocked as you play.
+            </div>
+          </FadeUp>
+        </div>
+      );
+    }
+
+    // ─── Section 3 — How It Works ───────────────────────────────────────────────
+
+    function Conveyor3D() {
+      const mountRef = React.useRef();
+      React.useEffect(() => {
+        const el = mountRef.current;
+        if (!el || !window.THREE) return;
+        const THREE = window.THREE;
+        const W = el.clientWidth || 520, H = el.clientHeight || 280;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(W, H);
+        el.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 100);
+        camera.position.set(0, 2.5, 9); camera.lookAt(0, 0, 0);
+
+        scene.add(new THREE.AmbientLight(0xf9a8d4, 0.5));
+        const dir = new THREE.DirectionalLight(0xfae8ff, 1.0);
+        dir.position.set(4, 6, 4); scene.add(dir);
+        const fill = new THREE.DirectionalLight(0x9333ea, 0.4);
+        fill.position.set(-4, 1, 2); scene.add(fill);
+
+        const track = new THREE.Mesh(
+          new THREE.BoxGeometry(10, 0.18, 1.2),
+          new THREE.MeshStandardMaterial({ color: 0xf5d0fe, metalness: 0.1, roughness: 0.7 })
+        );
+        track.position.y = -0.5; scene.add(track);
+
+        const generator = new THREE.Mesh(
+          new THREE.BoxGeometry(1.6, 1.6, 1.6),
+          new THREE.MeshStandardMaterial({ color: 0x9333ea, metalness: 0.15, roughness: 0.45 })
+        );
+        generator.position.set(0, 0.5, 0); scene.add(generator);
+
+        const inputColors = [0xf9a8d4, 0xf472b6, 0xf5d0fe];
+        const outputColors = [0xd946ef, 0xa855f7, 0xec4899];
+        const LOOP = 8, cubeSize = 0.7;
+        const cubeGeo = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+
+        const inputCubes = inputColors.map(c => {
+          const m = new THREE.Mesh(cubeGeo, new THREE.MeshStandardMaterial({ color: c, metalness: 0.1, roughness: 0.5, transparent: true, opacity: 1 }));
+          scene.add(m); return m;
+        });
+        const outputCubes = outputColors.map(c => {
+          const m = new THREE.Mesh(cubeGeo, new THREE.MeshStandardMaterial({ color: c, metalness: 0.1, roughness: 0.5, transparent: true, opacity: 1 }));
+          scene.add(m); return m;
+        });
+
+        const clock = new THREE.Clock();
+        let animId;
+        const animate = () => {
+          animId = requestAnimationFrame(animate);
+          const t = clock.getElapsedTime();
+          const loopT = (t % LOOP) / LOOP;
+
+          generator.position.y = 0.5 + Math.sin(t * 1.5) * 0.05;
+          generator.rotation.y = Math.sin(t * 0.4) * 0.2;
+
+          inputCubes.forEach((cube, i) => {
+            const phase = (loopT + i / 3) % 1;
+            if (phase < 0.45) {
+              const pct = phase / 0.45;
+              cube.position.set(-5 + (-0.9 - -5) * pct, -0.1 + Math.sin(pct * Math.PI) * 0.05, 0);
+              cube.material.opacity = pct < 0.1 ? pct * 10 : 1;
+              cube.rotation.y = pct * Math.PI * 2; cube.scale.setScalar(1);
+            } else if (phase < 0.55) {
+              const absorb = (phase - 0.45) / 0.10;
+              cube.position.set(-0.9 + absorb * 0.8, -0.1, 0);
+              cube.material.opacity = 1 - absorb; cube.scale.setScalar(1 - absorb * 0.5);
+            } else {
+              cube.position.x = -7; cube.material.opacity = 0; cube.scale.setScalar(1);
+            }
+          });
+
+          outputCubes.forEach((cube, i) => {
+            const phase = (loopT + i / 3 + 0.15) % 1;
+            if (phase < 0.05) {
+              cube.material.opacity = 0; cube.position.x = 0.9; cube.scale.setScalar(0.3);
+            } else if (phase < 0.12) {
+              const emerge = (phase - 0.05) / 0.07;
+              cube.position.set(0.9, -0.1, 0); cube.material.opacity = emerge;
+              cube.scale.setScalar(0.3 + emerge * 0.7);
+            } else if (phase < 0.62) {
+              const pct = (phase - 0.12) / 0.5;
+              cube.position.set(0.9 + (5 - 0.9) * pct, -0.1 + Math.sin(pct * Math.PI) * 0.05, 0);
+              cube.material.opacity = pct > 0.85 ? (1 - pct) / 0.15 : 1;
+              cube.scale.setScalar(1); cube.rotation.y = pct * Math.PI * 2;
+            } else {
+              cube.position.x = 7; cube.material.opacity = 0; cube.scale.setScalar(1);
+            }
+          });
+
+          renderer.render(scene, camera);
+        };
+        animate();
+
+        const onResize = () => {
+          const nW = el.clientWidth, nH = el.clientHeight;
+          camera.aspect = nW / nH; camera.updateProjectionMatrix(); renderer.setSize(nW, nH);
+        };
+        window.addEventListener('resize', onResize);
+        return () => {
+          cancelAnimationFrame(animId); window.removeEventListener('resize', onResize);
+          renderer.dispose();
+          if (el.contains(renderer.domElement)) el.removeChild(renderer.domElement);
+        };
+      }, []);
+      return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />;
+    }
+
+    const STEPS = [
+      { num: '01', title: 'It pays attention', body: "Which games you open twice in a row. Which ones you close after thirty seconds. Whether you play fast or slow on Tuesday nights. Who you invite to a versus match and who you don't." },
+      { num: '02', title: 'It writes a game', body: "Every few days the generator drafts something new. Sometimes it's solo — a puzzle built around a mechanic you keep returning to. Sometimes it's versus — a game tuned to the specific way you and one friend play differently from each other." },
+      { num: '03', title: 'It pushes the game to your library', body: "You get a notification. The game has a name, a small icon, and a card that says who it was made for — you, or you and a specific friend. If you hate it, you can throw it out. If your friend loves it and you don't, that's a real conversation." },
+    ];
+
+    function StepRow({ step, delay, last }) {
+      return (
+        <FadeUp delay={delay}>
+          <div style={{
+            display: 'grid', gridTemplateColumns: '100px 1fr',
+            gap: '0 56px',
+            paddingBottom: last ? 0 : 56,
+            marginBottom: last ? 0 : 56,
+            borderBottom: last ? 'none' : '1px solid rgba(217,70,239,0.22)',
+          }}>
+            <div style={{
+              fontSize: 100, fontWeight: 400, color: '#f472b6',
+              lineHeight: 0.85, letterSpacing: '-4px', paddingTop: 6,
+            }}>{step.num}</div>
+            <div>
+              <div style={{ fontSize: 34, fontWeight: 600, letterSpacing: '-0.5px', marginBottom: 14, color: '#ffffff', lineHeight: 1.1 }}>{step.title}</div>
+              <p style={{ fontSize: 17, lineHeight: 1.65, color: 'rgba(255,255,255,0.7)', maxWidth: 560 }}>{step.body}</p>
+            </div>
+          </div>
+        </FadeUp>
+      );
+    }
+
+    function Section3() {
+      return (
+        <div style={{ background: 'var(--lavender)', minHeight: '100%', paddingTop: 64, position: 'relative', overflow: 'hidden' }}>
+          <DiagonalSweepBg />
+
+          <div style={{ maxWidth: 1280, margin: '0 auto', padding: '80px 48px 40px', position: 'relative', zIndex: 2 }}>
+            <WordReveal text={"The generator\nwatches you lose."} size={56} color="#ffffff" />
+            <FadeUp delay={400}>
+              <p style={{ marginTop: 28, fontSize: 18, lineHeight: 1.6, color: 'rgba(255,255,255,0.72)', maxWidth: 600 }}>
+                It watches you win, get bored, rage-quit, and replay the same level four times. It also watches your matches against other people — who beats you, who you beat, and what you do differently when someone's watching. From all that, it drafts a new game every few days.
+              </p>
+            </FadeUp>
+          </div>
+
+          <FadeUp delay={200}>
+            <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 48px', position: 'relative', zIndex: 2 }}>
+              <div style={{ height: 280 }}><Conveyor3D /></div>
+            </div>
+          </FadeUp>
+
+          <div style={{ maxWidth: 1280, margin: '0 auto', padding: '60px 48px 80px', position: 'relative', zIndex: 2 }}>
+            {STEPS.map((s, i) => <StepRow key={s.num} step={s} delay={i * 100} last={i === STEPS.length - 1} />)}
+          </div>
+
+          <FadeUp>
+            <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 48px 100px', position: 'relative', zIndex: 2 }}>
+              <div style={{ maxWidth: 700, fontSize: 24, fontWeight: 400, lineHeight: 1.45, letterSpacing: '-0.3px', color: 'rgba(255,255,255,0.82)' }}>
+                The generator doesn't try to make games that are good in general. It makes games that are good for one specific person, or one specific pair of people. Most of them would be terrible if anyone else played them. That's sort of the point.
+              </div>
+            </div>
+          </FadeUp>
+        </div>
+      );
+    }
+
+    // ─── Section 4 — Download ───────────────────────────────────────────────────
+
+    function Phone3D() {
+      const mountRef = React.useRef();
+      React.useEffect(() => {
+        const el = mountRef.current;
+        if (!el || !window.THREE) return;
+        const THREE = window.THREE;
+        const W = el.clientWidth || 380, H = el.clientHeight || 500;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(W, H);
+        el.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(36, W / H, 0.1, 100);
+        camera.position.set(0, 0, 8);
+
+        scene.add(new THREE.AmbientLight(0xf9a8d4, 0.5));
+        const dir = new THREE.DirectionalLight(0xfae8ff, 1.1);
+        dir.position.set(3, 5, 5); scene.add(dir);
+        const fill = new THREE.DirectionalLight(0x9333ea, 0.5);
+        fill.position.set(-3, -1, 3); scene.add(fill);
+
+        const phoneW = 2.0, phoneH = 4.0, phoneD = 0.22;
+        const phone = new THREE.Mesh(
+          new THREE.BoxGeometry(phoneW, phoneH, phoneD),
+          new THREE.MeshStandardMaterial({ color: 0x1a0535, metalness: 0.3, roughness: 0.5 })
+        );
+        phone.rotation.z = -0.35; scene.add(phone);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 256; canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+        const grad = ctx.createLinearGradient(0, 0, 0, 512);
+        grad.addColorStop(0, '#f9a8d4');
+        grad.addColorStop(0.3, '#d946ef');
+        grad.addColorStop(0.65, '#a855f7');
+        grad.addColorStop(1, '#9333ea');
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, 256, 512);
+
+        const screenTex = new THREE.CanvasTexture(canvas);
+        const screen = new THREE.Mesh(
+          new THREE.BoxGeometry(phoneW * 0.84, phoneH * 0.88, 0.01),
+          new THREE.MeshStandardMaterial({ map: screenTex, metalness: 0.05, roughness: 0.3 })
+        );
+        screen.position.z = phoneD / 2 + 0.012;
+        phone.add(screen);
+
+        const btnMat = new THREE.MeshStandardMaterial({ color: 0x2d0a4f, metalness: 0.4, roughness: 0.4 });
+        const btn = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.35, 0.1), btnMat);
+        btn.position.set(phoneW / 2 + 0.04, 0.3, 0); phone.add(btn);
+        const btn2 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.25, 0.1), btnMat);
+        btn2.position.set(phoneW / 2 + 0.04, -0.15, 0); phone.add(btn2);
+
+        let gradShift = 0;
+        const clock = new THREE.Clock();
+        let animId, mouseX = 0, mouseY = 0;
+        const onMove = e => {
+          const r = el.getBoundingClientRect();
+          mouseX = ((e.clientX - r.left) / r.width - 0.5) * 2;
+          mouseY = ((e.clientY - r.top) / r.height - 0.5) * 2;
+        };
+        window.addEventListener('mousemove', onMove);
+
+        const animate = () => {
+          animId = requestAnimationFrame(animate);
+          const t = clock.getElapsedTime();
+          phone.position.y = Math.sin(t * 0.5) * 0.15;
+          phone.position.x = Math.sin(t * 0.3) * 0.06;
+          phone.rotation.x += (mouseY * 0.06 - phone.rotation.x) * 0.04;
+          phone.rotation.y += (mouseX * 0.06 - phone.rotation.y) * 0.04;
+
+          gradShift = (gradShift + 0.004) % 1;
+          const g2 = ctx.createLinearGradient(0, gradShift * 100, 0, 512 + gradShift * 100);
+          g2.addColorStop(0, '#f9a8d4'); g2.addColorStop(0.3, '#d946ef');
+          g2.addColorStop(0.65, '#a855f7'); g2.addColorStop(1, '#9333ea');
+          ctx.fillStyle = g2; ctx.fillRect(0, 0, 256, 512);
+          screenTex.needsUpdate = true;
+
+          renderer.render(scene, camera);
+        };
+        animate();
+
+        const onResize = () => {
+          const nW = el.clientWidth, nH = el.clientHeight;
+          camera.aspect = nW / nH; camera.updateProjectionMatrix(); renderer.setSize(nW, nH);
+        };
+        window.addEventListener('resize', onResize);
+        return () => {
+          cancelAnimationFrame(animId);
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('resize', onResize);
+          renderer.dispose();
+          if (el.contains(renderer.domElement)) el.removeChild(renderer.domElement);
+        };
+      }, []);
+      return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />;
+    }
+
+    function StoreBadge({ store }) {
+      const isApple = store === 'apple';
+      const [hovered, setHovered] = React.useState(false);
+      return (
+        <div
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          style={{
+            position: 'relative', overflow: 'hidden',
+            display: 'flex', alignItems: 'center', gap: 12,
+            background: 'rgba(255,255,255,0.12)',
+            border: '1px solid rgba(255,255,255,0.15)',
+            color: '#fff', padding: '14px 24px', borderRadius: 12,
+            cursor: 'pointer', minWidth: 180, transition: 'color 0.4s', zIndex: 0,
+          }}
+        >
+          <span style={{
+            position: 'absolute', inset: 0, background: GRAD,
+            opacity: hovered ? 1 : 0, transition: 'opacity 0.4s ease', zIndex: -1,
+          }} />
+          <div style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {isApple ? (
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
+                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
+                <path d="M3.18 23.76c.27.15.6.18.93.06l12.38-7.14-2.63-2.62-10.68 9.7zm-1.04-19.6C2.06 4.48 2 4.83 2 5.23v13.54c0 .4.06.75.14 1.07l.07.06 7.59-7.59v-.18L2.14 4.16zm15.5 9.41l-2.55-2.54-2.55 2.55 2.54 2.54 2.57-1.48c.73-.42.73-1.11-.01-1.07zM3.18.24L13.87 7.4l-2.64 2.64L1.07.3C1.4.17 1.75.2 2.04.32l1.14-.08z"/>
+              </svg>
+            )}
+          </div>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', opacity: 0.7 }}>
+              {isApple ? 'Download on the' : 'Get it on'}
+            </div>
+            <div style={{ fontSize: 16, letterSpacing: '-0.02em', marginTop: 1 }}>
+              {isApple ? 'App Store' : 'Google Play'}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function Section4() {
+      return (
+        <div style={{ minHeight: '100%', paddingTop: 64, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+          <NoisePurpleBg />
+
+          {/* Hero row */}
+          <div style={{
+            flex: 1, maxWidth: 1280, margin: '0 auto', width: '100%',
+            padding: '80px 48px 60px',
+            display: 'flex', alignItems: 'center', gap: 60,
+            position: 'relative', zIndex: 2,
+          }}>
+            <div style={{ flex: '0 0 50%' }}>
+              <WordReveal text={"Free to start.\n$4 to make it\nmake games."} size={72} color="#ffffff" />
+              <FadeUp delay={500}>
+                <p style={{ marginTop: 32, fontSize: 18, lineHeight: 1.6, color: 'rgba(255,255,255,0.7)', maxWidth: 480 }}>
+                  The first nine games and a rotating set from the library are free, solo or versus. The generator is a one-time $4 unlock — no subscription, no ads, no energy bar that refills overnight.
+                </p>
+              </FadeUp>
+              <FadeUp delay={650}>
+                <div style={{ display: 'flex', gap: 16, marginTop: 40, flexWrap: 'wrap' }}>
+                  <StoreBadge store="apple" />
+                  <StoreBadge store="google" />
+                </div>
+              </FadeUp>
+              <FadeUp delay={750}>
+                <div style={{ marginTop: 28, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {['iOS 16+ / Android 10+', '78 MB', 'Made by four people in a room with no windows'].map((line, i) => (
+                    <div key={i} style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)' }}>{line}</div>
+                  ))}
+                </div>
+              </FadeUp>
+            </div>
+            <div style={{ flex: '0 0 40%', height: 500 }}>
+              <Phone3D />
+            </div>
+          </div>
+
+          {/* Footer */}
+          <footer style={{ position: 'relative', overflow: 'hidden', zIndex: 2 }}>
+            <div style={{ height: 80, background: 'linear-gradient(to bottom, rgba(217,70,239,0.4), rgba(10,2,20,1))' }} />
+            <div style={{ background: '#0a0214' }}>
+              <div style={{
+                maxWidth: 1280, margin: '0 auto',
+                padding: '60px 48px 40px',
+                display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 48,
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <span style={{ display: 'inline-flex', gap: 2 }}>
+                      {['#f9a8d4','#f472b6','#d946ef','#9333ea'].map((c,i) => (
+                        <span key={i} style={{ display: 'inline-block', width: 6, height: 16, background: c }} />
+                      ))}
+                    </span>
+                    <span style={{ fontSize: 18, fontWeight: 400, color: '#fff', letterSpacing: '-0.05em' }}>Loopup</span>
+                  </div>
+                  <p style={{ fontSize: 14, lineHeight: 1.6, color: 'rgba(255,255,255,0.45)' }}>
+                    An app that makes games for you. Sometimes for you and one other person.
+                  </p>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#f472b6', marginBottom: 20 }}>App</div>
+                  {['Overview', 'Mini Games', 'How It Works', 'Download'].map(l => (
+                    <div key={l} style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', marginBottom: 10, cursor: 'pointer', transition: 'color 0.2s' }}
+                      onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                      onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.55)'}
+                    >{l}</div>
+                  ))}
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#f472b6', marginBottom: 20 }}>Other</div>
+                  {['Press', 'Support', 'Privacy', 'A weird mailing list we send sometimes'].map(l => (
+                    <div key={l} style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', marginBottom: 10, cursor: 'pointer', transition: 'color 0.2s' }}
+                      onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                      onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.55)'}
+                    >{l}</div>
+                  ))}
+                </div>
+              </div>
+              <div style={{
+                maxWidth: 1280, margin: '0 auto', padding: '24px 48px',
+                borderTop: '1px solid rgba(255,255,255,0.06)',
+                fontSize: 14, color: 'rgba(255,255,255,0.3)',
+              }}>
+                © Loopup 2026. The games are small on purpose.
+              </div>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    // ─── App ────────────────────────────────────────────────────────────────────
+
+    const WIPE_COLORS = ['#fce7f3','#f9a8d4','#f472b6','#d946ef','#a855f7','#9333ea'];
+
+    function WipeOverlay({ phase }) {
+      if (!phase) return null;
+      return (
+        <div className={`wipe-overlay wipe-${phase}`}>
+          {WIPE_COLORS.map((c, i) => (
+            <div key={i} className="wipe-block" style={{ background: c }} />
+          ))}
+        </div>
+      );
+    }
+
+    function App() {
+      const [activeSection, setActiveSection] = React.useState('Overview');
+      const [displayedSection, setDisplayedSection] = React.useState('Overview');
+      const [wipePhase, setWipePhase] = React.useState(null);
+      const scrollRef = React.useRef();
+
+      const navigateTo = (section) => {
+        if (section === activeSection) return;
+        setWipePhase('entering');
+        setTimeout(() => {
+          setDisplayedSection(section);
+          setActiveSection(section);
+          if (scrollRef.current) scrollRef.current.scrollTop = 0;
+          setWipePhase('leaving');
+          setTimeout(() => setWipePhase(null), 600);
+        }, 350);
+      };
+
+      const renderSection = () => {
+        switch (displayedSection) {
+          case 'Overview':     return <Section1 onNav={navigateTo} />;
+          case 'Mini Games':   return <Section2 />;
+          case 'How It Works': return <Section3 />;
+          case 'Download':     return <Section4 />;
+          default:             return <Section1 onNav={navigateTo} />;
+        }
+      };
+
+      return (
+        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <Nav active={activeSection} onNav={navigateTo} />
+          <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', background: 'var(--lavender)' }}>
+            {renderSection()}
+          </div>
+          <WipeOverlay phase={wipePhase} />
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
