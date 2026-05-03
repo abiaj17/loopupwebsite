@@ -65,7 +65,7 @@
     }
     @keyframes wipe-out {
       0%   { transform: scaleX(1); }
-      100% { transform: scaleX(0); transform-origin: right center; }
+      100% { transform: scaleX(0); }
     }
 
     .wipe-entering .wipe-block { animation: wipe-in 0.3s ease-in forwards; }
@@ -1222,6 +1222,24 @@
       );
     }
 
+    // ─── Error boundary ─────────────────────────────────────────────────────────
+
+    class SectionBoundary extends React.Component {
+      constructor(props) { super(props); this.state = { err: null }; }
+      static getDerivedStateFromError(err) { return { err }; }
+      render() {
+        if (this.state.err) {
+          return (
+            <div style={{ padding: '120px 48px', color: 'var(--black)', fontFamily: "'Pixelify Sans', monospace" }}>
+              <div style={{ fontSize: 28, marginBottom: 16 }}>This section didn't load.</div>
+              <div style={{ fontSize: 15, color: 'var(--black-tint)' }}>{String(this.state.err)}</div>
+            </div>
+          );
+        }
+        return this.props.children;
+      }
+    }
+
     // ─── App ────────────────────────────────────────────────────────────────────
 
     const WIPE_COLORS = ['#fce7f3','#f9a8d4','#f472b6','#d946ef','#a855f7','#9333ea'];
@@ -1251,8 +1269,8 @@
           setActiveSection(section);
           if (scrollRef.current) scrollRef.current.scrollTop = 0;
           setWipePhase('leaving');
-          setTimeout(() => setWipePhase(null), 600);
-        }, 350);
+          setTimeout(() => setWipePhase(null), 700);
+        }, 550);
       };
 
       const renderSection = () => {
@@ -1269,7 +1287,9 @@
         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Nav active={activeSection} onNav={navigateTo} />
           <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', background: 'var(--lavender)' }}>
-            {renderSection()}
+            <SectionBoundary key={displayedSection}>
+              {renderSection()}
+            </SectionBoundary>
           </div>
           <WipeOverlay phase={wipePhase} />
         </div>
